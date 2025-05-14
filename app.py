@@ -7,6 +7,20 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import json
 
+print("開始初始化 Firebase...")
+
+cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
+print("FIREBASE_CREDENTIALS 載入成功")
+
+cred = credentials.Certificate(cred_dict)
+print("Firebase 憑證物件建立成功")
+
+firebase_admin.initialize_app(cred)
+print("Firebase 初始化完成")
+
+db = firestore.client()
+print("Firestore client 建立完成")
+
 # 初始化 Flask
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
