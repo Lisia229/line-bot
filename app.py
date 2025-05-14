@@ -10,7 +10,7 @@ line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 
 # 管理員 LINE User ID（可加入多位）
-admin_users = ["你的LINE_USER_ID"]
+admin_users = ["U149f4e039b2911dea1f3b6d6329af835"]
 
 # 群組保護設定（存在記憶體）
 group_settings = {}
