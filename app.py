@@ -3,62 +3,47 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import *
 import os
-import sqlite3
+import firebase_admin
+from firebase_admin import credentials, firestore
+import json
 
+# 初始化 Flask
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 
-# 初始化 SQLite 資料庫
-def init_db():
-    conn = sqlite3.connect("settings.db")
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS group_settings (
-            group_id TEXT PRIMARY KEY,
-            kick_protect INTEGER DEFAULT 0,
-            invite_protect INTEGER DEFAULT 0,
-            name_image_protect INTEGER DEFAULT 0,
-            invite_link_protect INTEGER DEFAULT 0,
-            note_protect INTEGER DEFAULT 0,
-            album_protect INTEGER DEFAULT 0,
-            mention_protect INTEGER DEFAULT 0,
-            sticker_protect INTEGER DEFAULT 0
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# 初始化 Firebase
+cred_dict = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+cred = credentials.Certificate(cred_dict)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-# 初始化該群設定
+# 預設設定欄位
+DEFAULT_SETTINGS = {
+    "kick_protect": 0,
+    "invite_protect": 0,
+    "name_image_protect": 0,
+    "invite_link_protect": 0,
+    "note_protect": 0,
+    "album_protect": 0,
+    "mention_protect": 0,
+    "sticker_protect": 0
+}
+
+# 初始化群組設定
 def init_group_settings(group_id):
-    conn = sqlite3.connect("settings.db")
-    c = conn.cursor()
-    c.execute("SELECT group_id FROM group_settings WHERE group_id = ?", (group_id,))
-    if not c.fetchone():
-        c.execute('''
-            INSERT INTO group_settings (group_id) VALUES (?)
-        ''', (group_id,))
-    conn.commit()
-    conn.close()
+    doc_ref = db.collection("group_settings").document(group_id)
+    if not doc_ref.get().exists:
+        doc_ref.set(DEFAULT_SETTINGS)
 
 # 更新設定
 def update_setting(group_id, key, value):
-    conn = sqlite3.connect("settings.db")
-    c = conn.cursor()
-    c.execute(f'''
-        UPDATE group_settings SET {key} = ? WHERE group_id = ?
-    ''', (1 if value else 0, group_id))
-    conn.commit()
-    conn.close()
+    db.collection("group_settings").document(group_id).update({key: 1 if value else 0})
 
 # 取得設定
 def get_group_status(group_id):
-    conn = sqlite3.connect("settings.db")
-    c = conn.cursor()
-    c.execute("SELECT * FROM group_settings WHERE group_id = ?", (group_id,))
-    row = c.fetchone()
-    conn.close()
-    return row
+    doc = db.collection("group_settings").document(group_id).get()
+    return doc.to_dict() if doc.exists else None
 
 # 指令對應表
 TOGGLE_MAP = {
@@ -103,10 +88,8 @@ def callback():
         abort(400)
     return "OK"
 
-# 確認是否為群組管理員
 def is_group_admin(group_id, user_id):
     try:
-        summary = line_bot_api.get_group_summary(group_id)
         profile = line_bot_api.get_group_member_profile(group_id, user_id)
         return hasattr(profile, "display_name")
     except:
@@ -126,16 +109,40 @@ def handle_message(event):
     init_group_settings(group_id)
 
     row = get_group_status(group_id)
-    if row and row[7]:  # mention_protect index = 7
-        try:
-            if not is_group_admin(group_id, user_id):
-                mentions = getattr(event.message.mention, "mentionees", [])
-                if ("@所有人" in text or "@all" in text or len(mentions) >= 5):
-                    line_bot_api.kickout_from_group(group_id, user_id)
-                    return
-        except:
-            pass
 
+    # 違規偵測與踢出
+    if row:
+        if row.get("mention_protect", 0):
+            if not is_group_admin(group_id, user_id):
+                try:
+                    mentions = getattr(event.message.mention, "mentionees", [])
+                    if ("@所有人" in text or "@all" in text or len(mentions) >= 5):
+                        line_bot_api.kickout_from_group(group_id, user_id)
+                        return
+                except:
+                    pass
+
+        if row.get("invite_link_protect", 0) and "line.me/R/ti/g/" in text:
+            if not is_group_admin(group_id, user_id):
+                line_bot_api.kickout_from_group(group_id, user_id)
+                return
+
+        if row.get("note_protect", 0) and "記事本" in text:
+            if not is_group_admin(group_id, user_id):
+                line_bot_api.kickout_from_group(group_id, user_id)
+                return
+
+        if row.get("album_protect", 0) and "相簿" in text:
+            if not is_group_admin(group_id, user_id):
+                line_bot_api.kickout_from_group(group_id, user_id)
+                return
+
+        if row.get("sticker_protect", 0) and isinstance(event.message, StickerMessage):
+            if not is_group_admin(group_id, user_id):
+                line_bot_api.kickout_from_group(group_id, user_id)
+                return
+
+    # 管理員指令處理
     if not is_group_admin(group_id, user_id):
         return
 
@@ -148,12 +155,10 @@ def handle_message(event):
         if not row:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="查無設定"))
             return
-        keys = list(TOGGLE_MAP.values())
         status_lines = []
-        for idx, key in enumerate(keys):
-            name = [k for k, v in TOGGLE_MAP.items() if v == key][0]
-            emoji = "✅" if row[idx + 1] else "❌"
-            status_lines.append(f"{emoji} {name}")
+        for display, key in TOGGLE_MAP.items():
+            emoji = "✅" if row.get(key, 0) else "❌"
+            status_lines.append(f"{emoji} {display}")
         result = "\n".join(status_lines)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result))
         return
@@ -170,10 +175,8 @@ def handle_message(event):
 
 @handler.add(MemberJoinedEvent)
 def handle_member_joined(event):
-    joined_users = event.joined.members
     group_id = event.source.group_id
-
-    for user in joined_users:
+    for user in event.joined.members:
         if user.type == "user":
             try:
                 profile = line_bot_api.get_group_member_profile(group_id, user.user_id)
@@ -198,6 +201,5 @@ def handle_member_joined(event):
             )
 
 if __name__ == "__main__":
-    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
