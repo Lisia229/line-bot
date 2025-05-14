@@ -93,7 +93,6 @@ HELP_TEXT = '''🔐 保護功能指令清單（限管理員）：
 - 貼圖洗版保護
 '''
 
-# Webhook 路由
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
@@ -108,14 +107,11 @@ def callback():
 def is_group_admin(group_id, user_id):
     try:
         summary = line_bot_api.get_group_summary(group_id)
-        if user_id == summary.group_id:
-            return True
         profile = line_bot_api.get_group_member_profile(group_id, user_id)
-        return hasattr(profile, "display_name")  # 有取到 profile 就表示還在群內
+        return hasattr(profile, "display_name")
     except:
         return False
 
-# 處理文字訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
@@ -129,16 +125,24 @@ def handle_message(event):
 
     init_group_settings(group_id)
 
-    # 檢查是否為管理員
+    row = get_group_status(group_id)
+    if row and row[7]:  # mention_protect index = 7
+        try:
+            if not is_group_admin(group_id, user_id):
+                mentions = getattr(event.message.mention, "mentionees", [])
+                if ("@所有人" in text or "@all" in text or len(mentions) >= 5):
+                    line_bot_api.kickout_from_group(group_id, user_id)
+                    return
+        except:
+            pass
+
     if not is_group_admin(group_id, user_id):
         return
 
-    # 幫助指令
     if text == "/help":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=HELP_TEXT))
         return
 
-    # 狀態查詢
     if text == "/狀態":
         row = get_group_status(group_id)
         if not row:
@@ -154,7 +158,6 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result))
         return
 
-    # 開/關 指令
     for display, key in TOGGLE_MAP.items():
         if text == f"{display} 開":
             update_setting(group_id, key, True)
@@ -165,16 +168,6 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ {display} 已關閉"))
             return
 
-# 本地端啟動
-if __name__ == "__main__":
-    init_db()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-from linebot.models import MemberJoinedEvent
-
-from linebot.models import MemberJoinedEvent
-
-# 新成員加入群組時觸發
 @handler.add(MemberJoinedEvent)
 def handle_member_joined(event):
     joined_users = event.joined.members
@@ -204,3 +197,7 @@ def handle_member_joined(event):
                 TextSendMessage(text=welcome_text)
             )
 
+if __name__ == "__main__":
+    init_db()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
