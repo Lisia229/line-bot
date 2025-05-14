@@ -10,14 +10,10 @@ import json
 # 初始化 Firebase（只執行一次）
 if not firebase_admin._apps:
     cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-    print("FIREBASE_CREDENTIALS 載入成功")
     cred = credentials.Certificate(cred_dict)
-    print("Firebase 憑證物件建立成功")
     firebase_admin.initialize_app(cred)
-    print("Firebase 初始化完成")
 
 db = firestore.client()
-print("Firestore client 建立完成")
 
 # 初始化 Flask 與 LINE Bot
 app = Flask(__name__)
@@ -35,6 +31,14 @@ DEFAULT_SETTINGS = {
     "mention_protect": 0,
     "sticker_protect": 0
 }
+
+# 管理員清單（用戶 ID）
+ADMIN_USER_IDS = [
+    "U149f4e039b2911dea1f3b6d6329af835"
+]
+
+def is_group_admin(group_id, user_id):
+    return user_id in ADMIN_USER_IDS
 
 # 初始化群組設定
 def init_group_settings(group_id):
@@ -84,14 +88,6 @@ HELP_TEXT = '''🔐 保護功能指令清單（限管理員）：
 - 貼圖洗版保護
 '''
 
-# 管理員清單（用戶 ID）
-ADMIN_USER_IDS = [
-    "U149f4e039b2911dea1f3b6d6329af835"
-]
-
-def is_group_admin(group_id, user_id):
-    return user_id in ADMIN_USER_IDS
-
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
@@ -125,29 +121,39 @@ def handle_message(event):
 
     # 保護機制
     if row:
+        def warn_and_notify(reason):
+            warning_msg = f"⚠️ 你觸犯了群組規則：{reason}，請注意行為。"
+            admin_msg = f"👮 管理通知：使用者 {user_id} 在群組 {group_id} 觸犯了「{reason}」"
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=warning_msg))
+            for admin_id in ADMIN_USER_IDS:
+                try:
+                    line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
+                except:
+                    pass
+
         if row.get("mention_protect", 0):
             if not is_group_admin(group_id, user_id):
                 try:
                     mentions = getattr(event.message.mention, "mentionees", [])
-                    if ("@所有人" in text or "@all" in text or len(mentions) >= 5):
-                        line_bot_api.kickout_from_group(group_id, user_id)
+                    if "@所有人" in text or "@all" in text or len(mentions) >= 5:
+                        warn_and_notify("全體標記保護")
                         return
                 except:
                     pass
 
         if row.get("invite_link_protect", 0) and "line.me/R/ti/g/" in text:
             if not is_group_admin(group_id, user_id):
-                line_bot_api.kickout_from_group(group_id, user_id)
+                warn_and_notify("邀請網址保護")
                 return
 
         if row.get("note_protect", 0) and "記事本" in text:
             if not is_group_admin(group_id, user_id):
-                line_bot_api.kickout_from_group(group_id, user_id)
+                warn_and_notify("記事本保護")
                 return
 
         if row.get("album_protect", 0) and "相簿" in text:
             if not is_group_admin(group_id, user_id):
-                line_bot_api.kickout_from_group(group_id, user_id)
+                warn_and_notify("相簿保護")
                 return
 
     # 僅限管理員操作
@@ -193,10 +199,14 @@ def handle_sticker(event):
     row = get_group_status(group_id)
     if row and row.get("sticker_protect", 0):
         if not is_group_admin(group_id, user_id):
-            try:
-                line_bot_api.kickout_from_group(group_id, user_id)
-            except Exception as e:
-                print(f"踢出使用者失敗: {e}")
+            warning_msg = "⚠️ 請勿洗貼圖，已通知管理員審查。"
+            admin_msg = f"👮 貼圖洗版警告：使用者 {user_id} 在群組 {group_id} 洗貼圖"
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=warning_msg))
+            for admin_id in ADMIN_USER_IDS:
+                try:
+                    line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
+                except:
+                    pass
 
 # 成員加入歡迎訊息
 @handler.add(MemberJoinedEvent)
