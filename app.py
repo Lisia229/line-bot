@@ -5,17 +5,9 @@ from linebot.models import *
 import os
 import sqlite3
 
-# 初始化 Flask 與 LINE Bot
+# 初始化 Flask 與資料庫
 app = Flask(__name__)
-line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
-handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 
-# 管理員清單（User ID）
-ADMIN_USER_IDS = [
-    "U149f4e039b2911dea1f3b6d6329af835"
-]
-
-# SQLite 初始化
 DB_PATH = "group_settings.db"
 DEFAULT_SETTINGS = {
     "kick_protect": 0,
@@ -45,6 +37,17 @@ def init_db():
             )
         ''')
         conn.commit()
+
+init_db()  # ← Heroku 啟動時也會執行這個
+
+# 初始化 LINE Bot
+line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
+handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
+
+# 管理員清單（User ID）
+ADMIN_USER_IDS = [
+    "U149f4e039b2911dea1f3b6d6329af835"
+]
 
 def init_group_settings(group_id):
     with sqlite3.connect(DB_PATH) as conn:
@@ -254,6 +257,5 @@ def handle_member_joined(event):
             )
 
 if __name__ == "__main__":
-    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
