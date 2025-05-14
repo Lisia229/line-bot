@@ -6,8 +6,14 @@ import os
 
 app = Flask(__name__)
 
-line_bot_api = LineBotApi(os.environ['CHANNEL_ACCESS_TOKEN'])
-handler = WebhookHandler(os.environ['CHANNEL_SECRET'])
+channel_access_token = os.getenv('CHANNEL_ACCESS_TOKEN')
+channel_secret = os.getenv('CHANNEL_SECRET')
+
+if not channel_access_token or not channel_secret:
+    raise ValueError("Missing LINE Bot credentials")
+
+line_bot_api = LineBotApi(channel_access_token)
+handler = WebhookHandler(channel_secret)
 
 
 @app.route("/callback", methods=['POST'])
