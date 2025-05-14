@@ -13,7 +13,7 @@ line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 
 # 初始化 Firebase
-cred_dict = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
