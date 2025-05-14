@@ -88,12 +88,13 @@ def callback():
         abort(400)
     return "OK"
 
+ADMIN_USER_IDS = [
+    "U149f4e039b2911dea1f3b6d6329af835"
+]
+
 def is_group_admin(group_id, user_id):
-    try:
-        profile = line_bot_api.get_group_member_profile(group_id, user_id)
-        return hasattr(profile, "display_name")
-    except:
-        return False
+    return user_id in ADMIN_USER_IDS
+
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
