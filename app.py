@@ -95,7 +95,6 @@ ADMIN_USER_IDS = [
 def is_group_admin(group_id, user_id):
     return user_id in ADMIN_USER_IDS
 
-
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
@@ -110,7 +109,7 @@ def handle_message(event):
     init_group_settings(group_id)
 
     row = get_group_status(group_id)
-    # 顯示 user ID
+
     if text == "/id":
         line_bot_api.reply_message(
             event.reply_token,
@@ -118,7 +117,6 @@ def handle_message(event):
         )
         return
 
-    # 違規偵測與踢出
     if row:
         if row.get("mention_protect", 0):
             if not is_group_admin(group_id, user_id):
@@ -150,7 +148,6 @@ def handle_message(event):
                 line_bot_api.kickout_from_group(group_id, user_id)
                 return
 
-    # 管理員指令處理
     if not is_group_admin(group_id, user_id):
         return
 
@@ -193,14 +190,14 @@ def handle_member_joined(event):
                 display_name = "使用者"
 
             welcome_text = (
-                f"{display_name} 歡迎加入熊賀勝群組，原籤一番賞&自制一番賞配率都在相簿呦🥳\n"
+                f"{display_name} 歡迎加入熊赫勝群組，原籤一番購&自制一番購配率都在相簿器喔🥳\n"
                 "群組會有便宜的集單、盲盒的預購、不定時免費抽獎🥳\n"
-                "群組也會公告休息時間、新的一番賞&新的盲盒到貨通知呦🎊\n\n"
-                "🐻新加入的朋友如果覺得老闆服務的不錯，價格也親民，歡迎幫我追蹤臉書粉絲專頁：\n"
+                "群組也會公告休息時間、新的一番購&新的盲盒到貨通知喔🎉\n\n"
+                "🐻新加入的朋友如果覺得老闆服務的不錯，價格也觀測，歡迎幫我追蹤臉書粉絲專頁：\n"
                 "https://www.facebook.com/profile.php?id=100095394499752&mibextid=LQQJ4d\n\n"
-                "有空的話也歡迎到 Google 地圖幫「熊賀勝」評論 5 顆星星⭐️\n\n"
+                "有空的話也歡迎到 Google 地圖幫「熊赫勝」評論 5 顆星星⭐️\n\n"
                 "感謝大家的支持與愛待😊\n\n"
-                "有任何問題歡迎找 @熊賀勝-小胡 🫡"
+                "有任何問題歡迎找 @熊赫勝-小胡 🢪"
             )
 
             line_bot_api.reply_message(
