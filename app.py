@@ -7,32 +7,24 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import json
 
-print("開始初始化 Firebase...")
-
-cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-print("FIREBASE_CREDENTIALS 載入成功")
-
-cred = credentials.Certificate(cred_dict)
-print("Firebase 憑證物件建立成功")
-
-firebase_admin.initialize_app(cred)
-print("Firebase 初始化完成")
+# 初始化 Firebase（只執行一次）
+if not firebase_admin._apps:
+    cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
+    print("FIREBASE_CREDENTIALS 載入成功")
+    cred = credentials.Certificate(cred_dict)
+    print("Firebase 憑證物件建立成功")
+    firebase_admin.initialize_app(cred)
+    print("Firebase 初始化完成")
 
 db = firestore.client()
 print("Firestore client 建立完成")
 
-# 初始化 Flask
+# 初始化 Flask 與 LINE Bot
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 
-# 初始化 Firebase
-cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
-cred = credentials.Certificate(cred_dict)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
-# 預設設定欄位
+# 預設群組設定
 DEFAULT_SETTINGS = {
     "kick_protect": 0,
     "invite_protect": 0,
@@ -50,16 +42,16 @@ def init_group_settings(group_id):
     if not doc_ref.get().exists:
         doc_ref.set(DEFAULT_SETTINGS)
 
-# 更新設定
+# 更新某個設定項目
 def update_setting(group_id, key, value):
     db.collection("group_settings").document(group_id).update({key: 1 if value else 0})
 
-# 取得設定
+# 取得群組狀態
 def get_group_status(group_id):
     doc = db.collection("group_settings").document(group_id).get()
     return doc.to_dict() if doc.exists else None
 
-# 指令對應表
+# 指令對應
 TOGGLE_MAP = {
     "踢人保護": "kick_protect",
     "邀請保護": "invite_protect",
@@ -92,6 +84,14 @@ HELP_TEXT = '''🔐 保護功能指令清單（限管理員）：
 - 貼圖洗版保護
 '''
 
+# 管理員清單（用戶 ID）
+ADMIN_USER_IDS = [
+    "U149f4e039b2911dea1f3b6d6329af835"
+]
+
+def is_group_admin(group_id, user_id):
+    return user_id in ADMIN_USER_IDS
+
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers["X-Line-Signature"]
@@ -101,13 +101,6 @@ def callback():
     except InvalidSignatureError:
         abort(400)
     return "OK"
-
-ADMIN_USER_IDS = [
-    "U149f4e039b2911dea1f3b6d6329af835"
-]
-
-def is_group_admin(group_id, user_id):
-    return user_id in ADMIN_USER_IDS
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -121,7 +114,6 @@ def handle_message(event):
     group_id = source.group_id
 
     init_group_settings(group_id)
-
     row = get_group_status(group_id)
 
     if text == "/id":
@@ -131,6 +123,7 @@ def handle_message(event):
         )
         return
 
+    # 保護機制
     if row:
         if row.get("mention_protect", 0):
             if not is_group_admin(group_id, user_id):
@@ -157,11 +150,7 @@ def handle_message(event):
                 line_bot_api.kickout_from_group(group_id, user_id)
                 return
 
-        if row.get("sticker_protect", 0) and isinstance(event.message, StickerMessage):
-            if not is_group_admin(group_id, user_id):
-                line_bot_api.kickout_from_group(group_id, user_id)
-                return
-
+    # 僅限管理員操作
     if not is_group_admin(group_id, user_id):
         return
 
@@ -192,6 +181,24 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ {display} 已關閉"))
             return
 
+# 處理貼圖事件（洗版保護）
+@handler.add(StickerMessage)
+def handle_sticker(event):
+    source = event.source
+    if source.type != "group":
+        return
+    group_id = source.group_id
+    user_id = source.user_id
+
+    row = get_group_status(group_id)
+    if row and row.get("sticker_protect", 0):
+        if not is_group_admin(group_id, user_id):
+            try:
+                line_bot_api.kickout_from_group(group_id, user_id)
+            except Exception as e:
+                print(f"踢出使用者失敗: {e}")
+
+# 成員加入歡迎訊息
 @handler.add(MemberJoinedEvent)
 def handle_member_joined(event):
     group_id = event.source.group_id
@@ -219,6 +226,7 @@ def handle_member_joined(event):
                 TextSendMessage(text=welcome_text)
             )
 
+# 啟動伺服器
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
