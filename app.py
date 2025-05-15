@@ -165,14 +165,16 @@ def handle_message(event):
                 pass
 
     if row.get("mention_protect", 0):
-        if not is_group_admin(group_id, user_id):
-            try:
-                mentions = getattr(event.message.mention, "mentionees", [])
-                if "@所有人" in text or "@all" in text or len(mentions) >= 5:
-                    warn_and_notify("全體標記保護")
-                    return
-            except:
-                pass
+      if not is_group_admin(group_id, user_id):
+          try:
+              mentions = getattr(event.message.mention, "mentionees", [])
+              print("Mentions:", mentions)
+              if len(mentions) >= 5:
+                  warn_and_notify("全體標記保護")
+                  return
+          except AttributeError:
+              pass
+
 
     if row.get("invite_link_protect", 0) and "line.me/R/ti/g/" in text:
         if not is_group_admin(group_id, user_id):
