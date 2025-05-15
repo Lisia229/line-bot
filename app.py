@@ -8,6 +8,11 @@ import sqlite3
 # 初始化 Flask 與資料庫
 app = Flask(__name__)
 
+@app.route('/')
+# UptimeRobot 機器人呼叫
+def index():
+    return 'LINE Bot 正常運作中'
+
 DB_PATH = "group_settings.db"
 DEFAULT_SETTINGS = {
     "kick_protect": 0,
