@@ -185,7 +185,7 @@ def handle_message(event):
                     user_id = event.source.user_id
                     if user_id not in ADMIN_USER_IDS:
                         try:
-                            warn_and_notify("未經授權使用 @all")
+                            warn_and_notify(user_id, group_id, "未經授權使用 標記全體")
                             print(f"非管理員使用 @all，已踢出：{user_id}")
                         except Exception as e:
                             print(f"警告失敗：{e}")
