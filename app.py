@@ -133,14 +133,13 @@ def callback():
         abort(400)
     return "OK"
   
-def handle_message(event):
-  print("收到訊息:", event)
-  print("訊息文字:", event.message.text)
-  print("來自:", event.source.type)
-
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    print("收到訊息:", event)
+    print("訊息文字:", event.message.text)
+    print("來自:", event.source.type)
+
     text = event.message.text.strip()
     source = event.source
 
