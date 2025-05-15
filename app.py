@@ -159,26 +159,20 @@ def handle_message(event):
         )
         return
 
-    def warn_and_notify(reason):
+    def warn_and_notify(user_id, group_id, reason):
         warning_msg = f"⚠️ 你觸犯了群組規則：{reason}，請注意行為。"
         admin_msg = f"👮 管理通知：使用者 {user_id} 在群組 {group_id} 觸犯了「{reason}」"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=warning_msg))
+        try:
+            line_bot_api.push_message(user_id, TextSendMessage(text=warning_msg))
+        except:
+            pass
         for admin_id in ADMIN_USER_IDS:
             try:
                 line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
             except:
                 pass
 
-    # if row.get("mention_protect", 0):
-    #   if not is_group_admin(group_id, user_id):
-    #       try:
-    #           mentions = getattr(event.message.mention, "mentionees", [])
-    #           print("Mentions:", mentions)
-    #           if len(mentions) >= 5:
-    #               warn_and_notify("全體標記保護")
-    #               return
-    #       except AttributeError:
-    #           pass
+
     if isinstance(event.message, TextMessage):
         if hasattr(event.message, "mention") and event.message.mention:
             for mentionee in event.message.mention.mentionees:
@@ -191,10 +185,10 @@ def handle_message(event):
                     user_id = event.source.user_id
                     if user_id not in ADMIN_USER_IDS:
                         try:
-                            line_bot_api.kickout_group_member(group_id, user_id)
+                            warn_and_notify("未經授權使用 @all")
                             print(f"非管理員使用 @all，已踢出：{user_id}")
                         except Exception as e:
-                            print(f"踢出失敗：{e}")
+                            print(f"警告失敗：{e}")
 
 
     if row.get("invite_link_protect", 0) and "line.me/R/ti/g/" in text:
