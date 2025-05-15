@@ -25,6 +25,10 @@ DEFAULT_SETTINGS = {
     "sticker_protect": 0
 }
 
+GROUP_NAME_MAP = {
+    "C4a0b94700721b72b0c2a32fd60ddccaa": "熊賀勝"
+    }
+
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
@@ -147,6 +151,8 @@ def handle_message(event):
         return
 
     user_id = source.user_id
+    profile = line_bot_api.get_group_member_profile(group_id, user_id)
+    user_name = profile.display_name
     group_id = source.group_id
 
     init_group_settings(group_id)
@@ -160,8 +166,8 @@ def handle_message(event):
         return
 
     def warn_and_notify(user_id, group_id, reason):
-        warning_msg = f"⚠️ 你觸犯了群組規則：{reason}，請注意行為。"
-        admin_msg = f"👮 管理通知：使用者 {user_id} 在群組 {group_id} 觸犯了「{reason}」"
+        warning_msg = f"⚠️ {user_name}觸犯了群組規則：{reason}，請注意行為。"
+        admin_msg = f"👮 管理通知：使用者 {user_name} 在群組{GROUP_NAME_MAP[group_id]} 觸犯了「{reason}」"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=warning_msg)
