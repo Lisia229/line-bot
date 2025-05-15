@@ -162,15 +162,12 @@ def handle_message(event):
     def warn_and_notify(user_id, group_id, reason):
         warning_msg = f"⚠️ 你觸犯了群組規則：{reason}，請注意行為。"
         admin_msg = f"👮 管理通知：使用者 {user_id} 在群組 {group_id} 觸犯了「{reason}」"
-        try:
-            line_bot_api.push_message(user_id, TextSendMessage(text=warning_msg))
-        except Exception as e:
-            print(e)
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=warning_msg)
+        )
         for admin_id in ADMIN_USER_IDS:
-            try:
-                line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
-            except Exception as e:
-                print(e)
+            line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
 
 
     if isinstance(event.message, TextMessage):
