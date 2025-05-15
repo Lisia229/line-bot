@@ -191,7 +191,7 @@ def handle_message(event):
                     user_id = event.source.user_id
                     if user_id not in ADMIN_USER_IDS:
                         try:
-                            line_bot_api.kickout_from_group(group_id, user_id)
+                            line_bot_api.kickout_group_member(group_id, user_id)
                             print(f"非管理員使用 @all，已踢出：{user_id}")
                         except Exception as e:
                             print(f"踢出失敗：{e}")
