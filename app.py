@@ -164,13 +164,13 @@ def handle_message(event):
         admin_msg = f"👮 管理通知：使用者 {user_id} 在群組 {group_id} 觸犯了「{reason}」"
         try:
             line_bot_api.push_message(user_id, TextSendMessage(text=warning_msg))
-        except:
-            pass
+        except Exception as e:
+            print(e)
         for admin_id in ADMIN_USER_IDS:
             try:
                 line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
-            except:
-                pass
+            except Exception as e:
+                print(e)
 
 
     if isinstance(event.message, TextMessage):
