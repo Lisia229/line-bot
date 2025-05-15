@@ -169,16 +169,32 @@ def handle_message(event):
             except:
                 pass
 
-    if row.get("mention_protect", 0):
-      if not is_group_admin(group_id, user_id):
-          try:
-              mentions = getattr(event.message.mention, "mentionees", [])
-              print("Mentions:", mentions)
-              if len(mentions) >= 5:
-                  warn_and_notify("全體標記保護")
-                  return
-          except AttributeError:
-              pass
+    # if row.get("mention_protect", 0):
+    #   if not is_group_admin(group_id, user_id):
+    #       try:
+    #           mentions = getattr(event.message.mention, "mentionees", [])
+    #           print("Mentions:", mentions)
+    #           if len(mentions) >= 5:
+    #               warn_and_notify("全體標記保護")
+    #               return
+    #       except AttributeError:
+    #           pass
+    if isinstance(event.message, TextMessage):
+        if hasattr(event.message, "mention") and event.message.mention:
+            for mentionee in event.message.mention.mentionees:
+                # 這裡你可以印出來看看是哪個 user 被提及
+                print(f"被提及的 index: {mentionee.index}, length: {mentionee.length}")
+            if "@all" in text.lower():
+                # 檢查是不是群組，然後是不是管理員
+                if source.type == "group":
+                    group_id = source.group_id
+                    user_id = source.user_id
+                    if not ADMIN_USER_IDS(user_id):
+                        try:
+                            line_bot_api.kickout_from_group(group_id, user_id)
+                            print(f"非管理員使用 @all，已踢出：{user_id}")
+                        except Exception as e:
+                            print(f"踢出失敗：{e}")
 
 
     if row.get("invite_link_protect", 0) and "line.me/R/ti/g/" in text:
