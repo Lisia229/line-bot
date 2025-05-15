@@ -151,9 +151,9 @@ def handle_message(event):
         return
 
     user_id = source.user_id
+    group_id = source.group_id
     profile = line_bot_api.get_group_member_profile(group_id, user_id)
     user_name = profile.display_name
-    group_id = source.group_id
 
     init_group_settings(group_id)
     row = get_group_status(group_id)
