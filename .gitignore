@@ -1,3 +1,17 @@
-venv
+# Python virtual environment
+venv/
+
+# SQLite database
 group_settings.db
+
+# Environment variables
 .env
+
+# macOS
+.DS_Store
+
+# __pycache__ and compiled python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
