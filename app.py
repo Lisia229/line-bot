@@ -129,14 +129,18 @@ HELP_TEXT = '''🔐 保護功能指令清單（限管理員）：
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers["X-Line-Signature"]
+    signature = request.headers.get("X-Line-Signature", None)
     body = request.get_data(as_text=True)
+    print(f"signature: {signature}")
+    print(f"body: {body}")
+    print(f"CHANNEL_SECRET: {os.getenv('CHANNEL_SECRET')}")
     try:
         handler.handle(body, signature)
-    except InvalidSignatureError:
+    except InvalidSignatureError as e:
+        print("InvalidSignatureError:", e)
         abort(400)
     return "OK"
-  
+
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
