@@ -1,2 +1,3 @@
 venv
 group_settings.db
+.env
