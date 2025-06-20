@@ -164,16 +164,12 @@ def handle_message(event):
     init_group_settings(group_id)
     row = get_group_status(group_id)
 
-    if text == "/id":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"你的 User ID 是：{user_id}")
-        )
-        return
+    def is_group_admin(group_id, user_id):
+        return user_id in ADMIN_USER_IDS
 
     def warn_and_notify(user_id, group_id, reason):
         warning_msg = f"⚠️ {user_name}觸犯了群組規則：{reason}，請注意行為。"
-        admin_msg = f"👮 管理通知：使用者 {user_name} 在群組{GROUP_NAME_MAP[group_id]} 觸犯了「{reason}」"
+        admin_msg = f"👮 管理通知：使用者 {user_name} 在群組{GROUP_NAME_MAP.get(group_id, group_id)} 觸犯了「{reason}」"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=warning_msg)
@@ -181,47 +177,46 @@ def handle_message(event):
         for admin_id in ADMIN_USER_IDS:
             line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
 
-
-    if isinstance(event.message, TextMessage):
-        if hasattr(event.message, "mention") and event.message.mention:
-            for mentionee in event.message.mention.mentionees:
-                # 這裡你可以印出來看看是哪個 user 被提及
-                print(f"被提及的 index: {mentionee.index}, length: {mentionee.length}")
-            if "@all" in text.lower():
-                # 檢查是不是群組，然後是不是管理員
-                if source.type == "group":
-                    group_id = source.group_id
-                    user_id = event.source.user_id
-                    if user_id not in ADMIN_USER_IDS:
-                        try:
-                            warn_and_notify(user_id, group_id, "未經授權使用 標記全體")
-                            print(f"非管理員使用 @all，已踢出：{user_id}")
-                        except Exception as e:
-                            print(f"警告失敗：{e}")
-
-
-    if row.get("invite_link_protect", 0) and "line.me/R/ti/g/" in text:
-        if not is_group_admin(group_id, user_id):
-            warn_and_notify("邀請網址保護")
-            return
-
-    if row.get("note_protect", 0) and "記事本" in text:
-        if not is_group_admin(group_id, user_id):
-            warn_and_notify("記事本保護")
-            return
-
-    if row.get("album_protect", 0) and "相簿" in text:
-        if not is_group_admin(group_id, user_id):
-            warn_and_notify("相簿保護")
-            return
-
-    if not is_group_admin(group_id, user_id):
+    # 指令：/id
+    if text == "/id":
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"你的 User ID 是：{user_id}")
+        )
         return
 
+    # 指令：/踢我（非管理員可踢自己）
+    if text == "/踢我":
+        if not is_group_admin(group_id, user_id):
+            try:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🥾 你請求被踢，我就踢！掰～"))
+                line_bot_api.kickout_group_member(group_id, user_id)
+                print(f"使用者 {user_id} 已被踢出群組 {group_id}")
+            except Exception as e:
+                print(f"踢出失敗：{e}")
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 踢出失敗，可能是我沒管理權限"))
+        else:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="你是管理員，不能自踢啦 😎"))
+        return
+
+    # 處理 @all 警告與踢出
+    if "@all" in text.lower():
+        if not is_group_admin(group_id, user_id):
+            try:
+                warn_and_notify(user_id, group_id, "未經授權使用 標記全體")
+                print(f"非管理員使用 @all，準備踢出：{user_id}")
+                line_bot_api.kickout_group_member(group_id, user_id)
+            except Exception as e:
+                print(f"踢出失敗：{e}")
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 無法踢出，可能是我沒管理員權限"))
+            return
+
+    # 指令：/help
     if text == "/help":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=HELP_TEXT))
         return
 
+    # 指令：/狀態
     if text == "/狀態":
         status_lines = []
         for display, key in TOGGLE_MAP.items():
@@ -231,6 +226,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result))
         return
 
+    # 指令：功能 開/關
     for display, key in TOGGLE_MAP.items():
         if text == f"{display} 開":
             update_setting(group_id, key, True)
@@ -240,25 +236,6 @@ def handle_message(event):
             update_setting(group_id, key, False)
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ {display} 已關閉"))
             return
-
-@handler.add(StickerMessage)
-def handle_sticker(event):
-    source = event.source
-    if source.type != "group":
-        return
-    group_id = source.group_id
-    user_id = source.user_id
-
-    row = get_group_status(group_id)
-    if row.get("sticker_protect", 0) and not is_group_admin(group_id, user_id):
-        warning_msg = "⚠️ 請勿洗貼圖，已通知管理員審查。"
-        admin_msg = f"👮 貼圖洗版警告：使用者 {user_id} 在群組 {group_id} 洗貼圖"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=warning_msg))
-        for admin_id in ADMIN_USER_IDS:
-            try:
-                line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
-            except:
-                pass
 
 @handler.add(MemberJoinedEvent)
 def handle_member_joined(event):
@@ -290,3 +267,4 @@ def handle_member_joined(event):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
