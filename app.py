@@ -164,16 +164,15 @@ def handle_message(event):
     init_group_settings(group_id)
     row = get_group_status(group_id)
 
-    def is_group_admin(group_id, user_id):
-        return user_id in ADMIN_USER_IDS
-
-    def warn_and_notify(user_id, group_id, reason):
-        warning_msg = f"⚠️ {user_name}觸犯了群組規則：{reason}，請注意行為。"
-        admin_msg = f"👮 管理通知：使用者 {user_name} 在群組{GROUP_NAME_MAP.get(group_id, group_id)} 觸犯了「{reason}」"
+    def warn_and_notify(user_id, group_id, user_name, reason):
+        warning_msg = f"⚠️ {user_name} 觸犯了群組規則：{reason}，請注意行為。"
+        admin_msg = f"👮 管理通知：使用者 {user_name} 在群組 {GROUP_NAME_MAP.get(group_id, group_id)} 觸犯了「{reason}」"
+        # 一次用 reply_message 回覆警告訊息
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=warning_msg)
         )
+        # 用 push_message 通知管理員
         for admin_id in ADMIN_USER_IDS:
             line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
 
@@ -189,12 +188,15 @@ def handle_message(event):
     if text == "/踢我":
         if not is_group_admin(group_id, user_id):
             try:
+                # 先回覆，再踢人（注意這樣會有 reply_token 用兩次的問題，可用 push_message 替代）
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🥾 你請求被踢，我就踢！掰～"))
                 line_bot_api.kickout_group_member(group_id, user_id)
                 print(f"使用者 {user_id} 已被踢出群組 {group_id}")
             except Exception as e:
                 print(f"踢出失敗：{e}")
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 踢出失敗，原因：{e}"))
+                # 踢出失敗改用 push_message 通知管理員
+                for admin_id in ADMIN_USER_IDS:
+                    line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 踢出失敗，原因：{e}"))
         else:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="你是管理員，不能自踢啦 😎"))
         return
@@ -203,12 +205,14 @@ def handle_message(event):
     if "@all" in text.lower():
         if not is_group_admin(group_id, user_id):
             try:
-                warn_and_notify(user_id, group_id, "未經授權使用 標記全體")
+                warn_and_notify(user_id, group_id, user_name, "未經授權使用 標記全體")
                 print(f"非管理員使用 @all，準備踢出：{user_id}")
                 line_bot_api.kickout_group_member(group_id, user_id)
             except Exception as e:
                 print(f"踢出失敗：{e}")
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
+                # 因 reply_token 只能用一次，改用 push_message 通知管理員
+                for admin_id in ADMIN_USER_IDS:
+                    line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
 
     # 指令：/help
