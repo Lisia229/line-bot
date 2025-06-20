@@ -194,7 +194,7 @@ def handle_message(event):
                 print(f"使用者 {user_id} 已被踢出群組 {group_id}")
             except Exception as e:
                 print(f"踢出失敗：{e}")
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 踢出失敗，可能是我沒管理權限"))
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 踢出失敗，原因：{e}"))
         else:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="你是管理員，不能自踢啦 😎"))
         return
@@ -208,7 +208,7 @@ def handle_message(event):
                 line_bot_api.kickout_group_member(group_id, user_id)
             except Exception as e:
                 print(f"踢出失敗：{e}")
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ 無法踢出，可能是我沒管理員權限"))
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
 
     # 指令：/help
