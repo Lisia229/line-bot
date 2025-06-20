@@ -1,9 +1,10 @@
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
-from linebot.models import *
+from linebot.exceptions import InvalidSignatureError, LineBotApiError
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+    MemberJoinedEvent
+)
 import os
 import sqlite3
 

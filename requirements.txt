@@ -1,4 +1,6 @@
-line-bot-sdk
+line-bot-sdk>=2.4.0
 flask
 requests
 gunicorn
+python-dotenv
+apscheduler
