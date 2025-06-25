@@ -3,7 +3,7 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
-    MemberJoinedEvent
+    MemberJoinedEvent, FlexSendMessage
 )
 import os
 import sqlite3
@@ -268,6 +268,132 @@ def handle_member_joined(event):
                 event.reply_token,
                 TextSendMessage(text=welcome_text)
             )
+            
+
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    text = event.message.text.strip().lower()
+
+    if any(kw in text for kw in ["地址", "熊賀勝地址", "在哪裡"]):
+        reply_text = (
+            "您好～熊賀勝的地址在：\n"
+            "📍 338桃園市蘆竹區大新一街118巷19號\n"
+            "Google 地圖：https://g.co/kgs/cEtBeas"
+        )
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=reply_text)
+        )
+        return
+
+    elif "營業時間" in text:
+        reply_text = (
+            "周一固定公休\n"
+            "營業時間: 12:00~21:00"
+        )
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=reply_text)
+        )
+        return
+
+    elif "追蹤" in text or "粉絲" in text or "蝦皮" in text or "FB" in text:
+        # 建立 Facebook 卡片
+        fb_bubble = {
+            "type": "bubble",
+            "hero": {
+                "type": "image",
+                "url": "https://scontent.ftpe8-2.fna.fbcdn.net/v/t39.30808-6/493687872_9649486425130129_4145194897754717464_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=AG6m_6XrNG8Q7kNvwFpiAF0&_nc_oc=Adk_Z2QXA5sO0zt8iZ6l5n261H8JDAoFyqCCG_uwL5nkmzXnQntqelWYs2J8Wm0TPfw&_nc_zt=23&_nc_ht=scontent.ftpe8-2.fna&_nc_gid=dD28y31gOOgLvItS329zdw&oh=00_AfP6C7yAiI6q-3U24z4VKe22TzoWGq_HXXVPs0mUHOM2FQ&oe=6861A47A",  # 你可以換成 FB 專頁封面圖
+                "size": "full",
+                "aspectMode": "cover",
+                "aspectRatio": "320:213"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "paddingAll": "13px",
+                "contents": [
+                    {"type": "text", "text": "粉絲專頁", "size": "xs", "color": "#aaaaaa", "wrap": True},
+                    {"type": "text", "text": "追蹤熊賀勝 Facebook", "weight": "bold", "size": "sm", "wrap": True},
+                    {"type": "text", "text": "點我查看最新商品與活動公告", "size": "xs", "color": "#666666", "wrap": True}
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "uri",
+                            "label": "前往 Facebook",
+                            "uri": "https://www.facebook.com/profile.php?id=100095394499752"
+                        }
+                    }
+                ],
+                "flex": 0
+            }
+        }
+
+        # 建立蝦皮卡片
+        shopee_bubble = {
+            "type": "bubble",
+            "hero": {
+                "type": "image",
+                "url": "https://down-aka-tw.img.susercontent.com/tw-11134233-7rasd-m4lencedlku8d0_tn.webp",  # 你可以換成蝦皮商店圖
+                "size": "full",
+                "aspectMode": "cover",
+                "aspectRatio": "320:213"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "paddingAll": "13px",
+                "contents": [
+                    {"type": "text", "text": "蝦皮商城", "size": "xs", "color": "#aaaaaa", "wrap": True},
+                    {"type": "text", "text": "在蝦皮上找到熊賀勝！", "weight": "bold", "size": "sm", "wrap": True},
+                    {"type": "text", "text": "不定時更新商品到蝦皮喔！", "size": "xs", "color": "#666666", "wrap": True}
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "uri",
+                            "label": "前往蝦皮",
+                            "uri": " https://shopee.tw/shop/1442666911"  # 請換成你實際的蝦皮賣場連結
+                        }
+                    }
+                ],
+                "flex": 0
+            }
+        }
+
+        # Carousel 包裝
+        carousel = {
+            "type": "carousel",
+            "contents": [fb_bubble, shopee_bubble]
+        }
+
+        # 發送 Flex Message
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(alt_text="追蹤熊賀勝", contents=carousel)
+        )
+        return
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
