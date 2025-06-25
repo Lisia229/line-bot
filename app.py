@@ -244,7 +244,7 @@ def handle_message(event):
             "type": "bubble",
             "hero": {
                 "type": "image",
-                "url": "https://scontent.ftpe8-2.fna.fbcdn.net/v/t39.30808-6/493687872_9649486425130129_4145194897754717464_n.jpg",
+                "url": "https://scontent.ftpe8-2.fna.fbcdn.net/v/t39.30808-6/493687872_9649486425130129_4145194897754717464_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=AG6m_6XrNG8Q7kNvwFpiAF0&_nc_oc=Adk_Z2QXA5sO0zt8iZ6l5n261H8JDAoFyqCCG_uwL5nkmzXnQntqelWYs2J8Wm0TPfw&_nc_zt=23&_nc_ht=scontent.ftpe8-2.fna&_nc_gid=3e5vz6t8yyzOkO2sPrjnRg&oh=00_AfP2K4tWu6Scko4Ly0PZWA4wqQzfGnWKR-4yFSoHz6PQqA&oe=6861A47A",
                 "size": "full",
                 "aspectMode": "cover",
                 "aspectRatio": "320:213"
