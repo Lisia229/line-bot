@@ -58,7 +58,7 @@ handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 
 # 管理員清單（User ID）
 ADMIN_USER_IDS = [
-    "U149f4e039b2911dea1f3b6d6329af835"
+    "U149f4e039b2911dea1f3b6d6329af835", "U99c0c99890375b70599760c76eb958c9"
 ]
 
 def init_group_settings(group_id):
@@ -152,6 +152,7 @@ def handle_message(event):
     print("來自:", event.source.type)
 
     text = event.message.text.strip()
+    lower_text = text.lower()
     source = event.source
 
     if source.type != "group":
@@ -168,60 +169,40 @@ def handle_message(event):
     def warn_and_notify(user_id, group_id, user_name, reason):
         warning_msg = f"⚠️ {user_name} 觸犯了群組規則：{reason}，請注意行為。"
         admin_msg = f"👮 管理通知：使用者 {user_name} 在群組 {GROUP_NAME_MAP.get(group_id, group_id)} 觸犯了「{reason}」"
-        # 一次用 reply_message 回覆警告訊息
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=warning_msg)
-        )
-        # 用 push_message 通知管理員
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=warning_msg))
         for admin_id in ADMIN_USER_IDS:
             line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
 
-    # 指令：/id
     if text == "/id":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"你的 User ID 是：{user_id}")
-        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"你的 User ID 是：{user_id}"))
         return
 
-    # 指令：/踢我（非管理員可踢自己）
     if text == "/踢我":
         if not is_group_admin(group_id, user_id):
             try:
-                # 先回覆，再踢人（注意這樣會有 reply_token 用兩次的問題，可用 push_message 替代）
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🥾 你請求被踢，我就踢！掰～"))
                 line_bot_api.kickout_group_member(group_id, user_id)
-                print(f"使用者 {user_id} 已被踢出群組 {group_id}")
             except Exception as e:
-                print(f"踢出失敗：{e}")
-                # 踢出失敗改用 push_message 通知管理員
                 for admin_id in ADMIN_USER_IDS:
                     line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 踢出失敗，原因：{e}"))
         else:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="你是管理員，不能自踢啦 😎"))
         return
 
-    # 處理 @all 警告與踢出
-    if "@all" in text.lower():
+    if "@all" in lower_text:
         if not is_group_admin(group_id, user_id):
             try:
                 warn_and_notify(user_id, group_id, user_name, "未經授權使用 標記全體")
-                print(f"非管理員使用 @all，準備踢出：{user_id}")
                 line_bot_api.kickout_group_member(group_id, user_id)
             except Exception as e:
-                print(f"踢出失敗：{e}")
-                # 因 reply_token 只能用一次，改用 push_message 通知管理員
                 for admin_id in ADMIN_USER_IDS:
                     line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
 
-    # 指令：/help
     if text == "/help":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=HELP_TEXT))
         return
 
-    # 指令：/狀態
     if text == "/狀態":
         status_lines = []
         for display, key in TOGGLE_MAP.items():
@@ -231,7 +212,6 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result))
         return
 
-    # 指令：功能 開/關
     for display, key in TOGGLE_MAP.items():
         if text == f"{display} 開":
             update_setting(group_id, key, True)
@@ -242,69 +222,29 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"❌ {display} 已關閉"))
             return
 
-@handler.add(MemberJoinedEvent)
-def handle_member_joined(event):
-    group_id = event.source.group_id
-    for user in event.joined.members:
-        if user.type == "user":
-            try:
-                profile = line_bot_api.get_group_member_profile(group_id, user.user_id)
-                display_name = profile.display_name
-            except:
-                display_name = "使用者"
-
-            welcome_text = (
-                f"{display_name} 歡迎加入熊赫勝群組，原籤一番購&自制一番購配率都在相簿器喔🥳\n"
-                "群組會有便宜的集單、盲盒的預購、不定時免費抽獎🥳\n"
-                "群組也會公告休息時間、新的一番購&新的盲盒到貨通知喔🎉\n\n"
-                "🐻新加入的朋友如果覺得老闆服務的不錯，價格也觀測，歡迎幫我追蹤臉書粉絲專頁：\n"
-                "https://www.facebook.com/profile.php?id=100095394499752&mibextid=LQQJ4d\n\n"
-                "有空的話也歡迎到 Google 地圖幫「熊赫勝」評論 5 顆星星⭐️\n\n"
-                "感謝大家的支持與愛待😊\n\n"
-                "有任何問題歡迎找 @熊赫勝-小胡 🢪"
-            )
-
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=welcome_text)
-            )
-            
-
-
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    text = event.message.text.strip().lower()
-
-    if any(kw in text for kw in ["地址", "熊賀勝地址", "在哪裡"]):
+    # 📍 地址查詢
+    if any(kw in lower_text for kw in ["地址", "熊賀勝地址", "在哪裡"]):
         reply_text = (
             "您好～熊賀勝的地址在：\n"
             "📍 338桃園市蘆竹區大新一街118巷19號\n"
             "Google 地圖：https://g.co/kgs/cEtBeas"
         )
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply_text)
-        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
         return
 
-    elif "營業時間" in text:
-        reply_text = (
-            "周一固定公休\n"
-            "營業時間: 12:00~21:00"
-        )
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply_text)
-        )
+    # 🕒 營業時間
+    if "營業時間" in lower_text:
+        reply_text = "周一固定公休\n營業時間: 12:00~21:00"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
         return
 
-    elif "追蹤" in text or "粉絲" in text or "蝦皮" in text or "FB" in text:
-        # 建立 Facebook 卡片
+    # 📣 追蹤卡片
+    if any(kw in lower_text for kw in ["追蹤", "粉絲", "蝦皮", "fb"]):
         fb_bubble = {
             "type": "bubble",
             "hero": {
                 "type": "image",
-                "url": "https://scontent.ftpe8-2.fna.fbcdn.net/v/t39.30808-6/493687872_9649486425130129_4145194897754717464_n.jpg?_nc_cat=101&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=AG6m_6XrNG8Q7kNvwFpiAF0&_nc_oc=Adk_Z2QXA5sO0zt8iZ6l5n261H8JDAoFyqCCG_uwL5nkmzXnQntqelWYs2J8Wm0TPfw&_nc_zt=23&_nc_ht=scontent.ftpe8-2.fna&_nc_gid=dD28y31gOOgLvItS329zdw&oh=00_AfP6C7yAiI6q-3U24z4VKe22TzoWGq_HXXVPs0mUHOM2FQ&oe=6861A47A",  # 你可以換成 FB 專頁封面圖
+                "url": "https://scontent.ftpe8-2.fna.fbcdn.net/v/t39.30808-6/493687872_9649486425130129_4145194897754717464_n.jpg",
                 "size": "full",
                 "aspectMode": "cover",
                 "aspectRatio": "320:213"
@@ -340,12 +280,11 @@ def handle_message(event):
             }
         }
 
-        # 建立蝦皮卡片
         shopee_bubble = {
             "type": "bubble",
             "hero": {
                 "type": "image",
-                "url": "https://down-aka-tw.img.susercontent.com/tw-11134233-7rasd-m4lencedlku8d0_tn.webp",  # 你可以換成蝦皮商店圖
+                "url": "https://down-aka-tw.img.susercontent.com/tw-11134233-7rasd-m4lencedlku8d0_tn.webp",
                 "size": "full",
                 "aspectMode": "cover",
                 "aspectRatio": "320:213"
@@ -373,7 +312,7 @@ def handle_message(event):
                         "action": {
                             "type": "uri",
                             "label": "前往蝦皮",
-                            "uri": " https://shopee.tw/shop/1442666911"  # 請換成你實際的蝦皮賣場連結
+                            "uri": "https://shopee.tw/shop/1442666911"
                         }
                     }
                 ],
@@ -381,18 +320,45 @@ def handle_message(event):
             }
         }
 
-        # Carousel 包裝
         carousel = {
             "type": "carousel",
             "contents": [fb_bubble, shopee_bubble]
         }
 
-        # 發送 Flex Message
         line_bot_api.reply_message(
             event.reply_token,
             FlexSendMessage(alt_text="追蹤熊賀勝", contents=carousel)
         )
         return
+
+@handler.add(MemberJoinedEvent)
+def handle_member_joined(event):
+    group_id = event.source.group_id
+    for user in event.joined.members:
+        if user.type == "user":
+            try:
+                profile = line_bot_api.get_group_member_profile(group_id, user.user_id)
+                display_name = profile.display_name
+            except:
+                display_name = "使用者"
+
+            welcome_text = (
+                f"{display_name} 歡迎加入熊赫勝群組，原籤一番購&自制一番購配率都在相簿器喔🥳\n"
+                "群組會有便宜的集單、盲盒的預購、不定時免費抽獎🥳\n"
+                "群組也會公告休息時間、新的一番購&新的盲盒到貨通知喔🎉\n\n"
+                "🐻新加入的朋友如果覺得老闆服務的不錯，價格也觀測，歡迎幫我追蹤臉書粉絲專頁：\n"
+                "https://www.facebook.com/profile.php?id=100095394499752&mibextid=LQQJ4d\n\n"
+                "有空的話也歡迎到 Google 地圖幫「熊赫勝」評論 5 顆星星⭐️\n\n"
+                "感謝大家的支持與愛待😊\n\n"
+                "有任何問題歡迎找 @熊赫勝-小胡 🢪"
+            )
+
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=welcome_text)
+            )
+            
+
 
 
 if __name__ == "__main__":
