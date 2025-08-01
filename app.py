@@ -8,6 +8,7 @@ from linebot.models import (
 import os
 import sqlite3
 import random
+import re
 
 # 初始化 Flask 與資料庫
 app = Flask(__name__)
@@ -203,6 +204,19 @@ def handle_message(event):
                 for admin_id in ADMIN_USER_IDS:
                     line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
+        
+    # ✅ 支援「幫我選3個數字」~「幫我選5個數字」這種句子
+    match = re.search(r"幫我選([1-5])個數字", text)
+    if match:
+        count = int(match.group(1))
+        numbers = random.sample(range(1, 81), count)
+        result = "、".join(str(n) for n in numbers)
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"我幫你選的是：{result}")
+        )
+        return
+
         
     if "幫我選個數字" in text:
         number = random.randint(1, 80)
