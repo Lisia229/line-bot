@@ -7,6 +7,7 @@ from linebot.models import (
 )
 import os
 import sqlite3
+import random
 
 # 初始化 Flask 與資料庫
 app = Flask(__name__)
@@ -202,6 +203,11 @@ def handle_message(event):
                 for admin_id in ADMIN_USER_IDS:
                     line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
+        
+    if "幫我選個數字" in text:
+        number = random.randint(1, 80)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"我幫你選的是：{number}"))
+        return
 
     if text == "/help":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=HELP_TEXT))
