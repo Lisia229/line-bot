@@ -168,9 +168,6 @@ def handle_message(event):
     init_group_settings(group_id)
     row = get_group_status(group_id)
     
-    # if user_id == "U91684e691695bb248c001f285f2b7321":
-    #     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="你閉嘴"))
-    #     return
 
     def warn_and_notify(user_id, group_id, user_name, reason):
         warning_msg = f"⚠️ {user_name} 觸犯了群組規則：{reason}，請注意行為。"
