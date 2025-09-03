@@ -255,7 +255,7 @@ def handle_message(event):
 
     # 🕒 營業時間
     if any(kw in lower_text for kw in ["營業", "營業時間"]):
-        reply_text = "周一固定公休\n營業時間: 12:00~21:00"
+        reply_text = "周一固定公休\n營業時間: 14:00~21:00"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
         return
 
