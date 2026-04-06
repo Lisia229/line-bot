@@ -3,12 +3,12 @@
     "**/.git": true,
     "**/.svn": true,
     "**/.hg": true,
-    "**/CVS": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true,
     "**/._*": true,
     "dist": true,
-    "node_modules": true
+    "node_modules": true,
+    "**/CVS": true
   },
   "hide-files.files": []
 }

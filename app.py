@@ -247,15 +247,15 @@ def handle_message(event):
     if any(kw in lower_text for kw in ["地址", "熊賀勝地址", "在哪裡"]):
         reply_text = (
             "您好～熊賀勝的地址在：\n"
-            "📍 338桃園市蘆竹區大新一街118巷19號\n"
-            "Google 地圖：https://g.co/kgs/cEtBeas"
+            "📍 高雄市三民區信國路32號\n"
+            "Google 地圖：https://maps.app.goo.gl/ANLHUFtgiAhE2rUS7?g_st=ic"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
         return
 
     # 🕒 營業時間
     if any(kw in lower_text for kw in ["營業", "營業時間"]):
-        reply_text = "周一固定公休\n營業時間: 14:00~21:00"
+        reply_text = "營業時間: 下午2:00~晚上9:00"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
         return
 
