@@ -37,6 +37,7 @@ GROUP_NAME_MAP = {
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS group_settings (
                 group_id TEXT PRIMARY KEY,
@@ -50,6 +51,28 @@ def init_db():
                 sticker_protect INTEGER DEFAULT 0
             )
         ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+
+        default_settings = {
+            "business_hours": "下午2:00~晚上8:00",
+            "shop_address": "高雄市三民區信國路32號",
+            "fb_link": "https://facebook.com/",
+            "shopee_link": "https://shopee.tw/",
+            "shop_announcement": "目前沒有公告"
+        }
+
+        for key, value in default_settings.items():
+            cursor.execute('''
+                INSERT OR IGNORE INTO bot_settings (key, value)
+                VALUES (?, ?)
+            ''', (key, value))
+
         conn.commit()
 
 init_db()  # ← Heroku 啟動時也會執行這個
@@ -99,7 +122,50 @@ def get_group_status(group_id):
 
 def is_group_admin(group_id, user_id):
     return user_id in ADMIN_USER_IDS
+def get_setting(key):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
 
+        cursor.execute(
+            "SELECT value FROM bot_settings WHERE key=?",
+            (key,)
+        )
+
+        row = cursor.fetchone()
+
+        if row:
+            return row[0]
+
+        return None
+
+
+def set_setting(key, value):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO bot_settings (key, value)
+            VALUES (?, ?)
+        ''', (
+            key,
+            value
+        ))
+
+        conn.commit()
+        
+def set_business_hours(hours):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO bot_settings (key, value)
+            VALUES (?, ?)
+        ''', (
+            "business_hours",
+            hours
+        ))
+
+        conn.commit()
 TOGGLE_MAP = {
     "踢人保護": "kick_protect",
     "邀請保護": "invite_protect",
@@ -219,6 +285,127 @@ def handle_message(event):
         number = random.randint(1, 80)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"我幫你選的是：{number}"))
         return
+    
+    if text.startswith("/設定地址 "):
+
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 非管理員無法更改地址")
+            )
+            return
+
+        value = text.replace("/設定地址 ", "").strip()
+
+        set_setting("shop_address", value)
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text=f"✅ 地址已更新\n\n{value}"
+            )
+        )
+        return
+    
+    if text.startswith("/設定FB "):
+
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 非管理員無法更改 FB")
+            )
+            return
+
+        value = text.replace("/設定FB ", "").strip()
+
+        set_setting("fb_link", value)
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text="✅ FB 連結已更新"
+            )
+        )
+        return
+    
+    if text.startswith("/設定蝦皮 "):
+
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 非管理員無法更改蝦皮")
+            )
+            return
+
+        value = text.replace("/設定蝦皮 ", "").strip()
+
+        set_setting("shopee_link", value)
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text="✅ 蝦皮連結已更新"
+            )
+        )
+        return
+    
+    if text.startswith("/設定公告 "):
+
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 非管理員無法更改公告")
+            )
+            return
+
+        value = text.replace("/設定公告 ", "").strip()
+
+        set_setting("shop_announcement", value)
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text=f"📢 公告已更新\n\n{value}"
+            )
+        )
+        return
+        
+    if text.startswith("/設定營業時間 "):
+
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 非管理員無法更改營業時間")
+            )
+            return
+
+        value = text.replace("/設定營業時間 ", "").strip()
+
+        set_setting("business_hours", value)
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(
+                text=f"✅ 營業時間已更新\n\n{value}"
+            )
+        )
+        return
+    
+    # 📢 公告
+    if any(kw in lower_text for kw in ["公告", "最新消息"]):
+
+        reply_text = (
+            f"📢 最新公告\n\n"
+            f"{get_setting('shop_announcement')}"
+        )
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=reply_text)
+        )
+
+        return
+    
 
     if text == "/help":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=HELP_TEXT))
@@ -247,16 +434,18 @@ def handle_message(event):
     if any(kw in lower_text for kw in ["地址", "熊賀勝地址", "在哪裡"]):
         reply_text = (
             "您好～熊賀勝的地址在：\n"
-            "📍 高雄市三民區信國路32號\n"
-            "Google 地圖：https://maps.app.goo.gl/ANLHUFtgiAhE2rUS7?g_st=ic"
+            f"📍 {get_setting('shop_address')}"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
         return
 
     # 🕒 營業時間
     if any(kw in lower_text for kw in ["營業", "營業時間"]):
-        reply_text = "營業時間: 下午2:00~晚上9:00"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+        reply_text = f"營業時間：{get_setting('business_hours')}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=reply_text)
+        )
         return
 
     # 📣 追蹤卡片
@@ -293,7 +482,7 @@ def handle_message(event):
                         "action": {
                             "type": "uri",
                             "label": "前往 Facebook",
-                            "uri": "https://www.facebook.com/profile.php?id=100095394499752"
+                            "uri": get_setting("fb_link")
                         }
                     }
                 ],
@@ -333,7 +522,7 @@ def handle_message(event):
                         "action": {
                             "type": "uri",
                             "label": "前往蝦皮",
-                            "uri": "https://shopee.tw/shop/1442666911"
+                            "uri": get_setting("shopee_link")
                         }
                     }
                 ],
