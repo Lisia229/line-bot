@@ -85,6 +85,7 @@ handler = WebhookHandler(os.getenv("CHANNEL_SECRET"))
 ADMIN_USER_IDS = [
     "U149f4e039b2911dea1f3b6d6329af835", "U99c0c99890375b70599760c76eb958c9"
 ]
+FLY_USER_ID = "Ue49ea57203993d7f8bb644aa4303f8d7"
 
 def init_group_settings(group_id):
     with sqlite3.connect(DB_PATH) as conn:
@@ -244,6 +245,27 @@ def handle_message(event):
 
     if text == "/id":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"你的 User ID 是：{user_id}"))
+        return
+
+    if text == "幫我踢掉fly":
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 只有管理員可以使用這個指令")
+            )
+            return
+
+        try:
+            line_bot_api.kickout_group_member(group_id, FLY_USER_ID)
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="✅ fly 已踢出群組")
+            )
+        except Exception as e:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"❌ 踢出 fly 失敗，原因：{e}")
+            )
         return
 
     if text == "/踢我":
