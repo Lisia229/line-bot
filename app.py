@@ -242,7 +242,7 @@ def handle_message(event):
         for admin_id in ADMIN_USER_IDS:
             line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
 
-    if text == "/id" or any(keyword in text for keyword in ["笑死", "GG", "不要", "哭啊"]):
+    if text == "/id":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"你的 User ID 是：{user_id}"))
         return
 
