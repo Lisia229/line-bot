@@ -268,11 +268,20 @@ def handle_message(event):
                     line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
         
-    # ✅ 支援「幫我選3個數字」~「幫我選5個數字」這種句子
-    match = re.search(r"幫我選([1-5])個數字", text)
+    # ✅ 支援「幫我在1-80之間選5個數字」這種句子
+    match = re.search(r"幫我在\s*(\d+)\s*-\s*(\d+)\s*之間選\s*(\d+)\s*個數字", text)
     if match:
-        count = int(match.group(1))
-        numbers = random.sample(range(1, 81), count)
+        low, high, count = (int(match.group(i)) for i in range(1, 4))
+        if low > high:
+            low, high = high, low
+        range_size = high - low + 1
+        if count < 1 or count > range_size:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"❌ 數字個數要在 1~{range_size} 之間喔")
+            )
+            return
+        numbers = random.sample(range(low, high + 1), count)
         result = "、".join(str(n) for n in numbers)
         line_bot_api.reply_message(
             event.reply_token,
@@ -280,12 +289,20 @@ def handle_message(event):
         )
         return
 
-        
+
     if "幫我選個數字" in text:
         number = random.randint(1, 80)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"我幫你選的是：{number}"))
         return
-    
+
+    if "要洗嗎" in text:
+        if random.choice([True, False]):
+            answer = "不洗直上"
+        else:
+            answer = f"洗 {random.randint(1, 10)} 下"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=answer))
+        return
+
     if text.startswith("/設定地址 "):
 
         if not is_group_admin(group_id, user_id):
