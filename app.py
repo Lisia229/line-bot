@@ -269,7 +269,10 @@ def handle_message(event):
             return
         
     # ✅ 支援「幫我在1-80之間選5個數字」這種句子
-    match = re.search(r"幫我在\s*(\d+)\s*-\s*(\d+)\s*之間選\s*(\d+)\s*個數字", text)
+    match = re.search(
+        r"幫我在\s*(\d+)\s*[-~～至到－—]\s*(\d+)\s*之間選\s*(\d+)\s*個數字",
+        text
+    )
     if match:
         low, high, count = (int(match.group(i)) for i in range(1, 4))
         if low > high:
