@@ -227,21 +227,32 @@ def save_ichiban_listings(listings):
     set_setting("ichiban_listings", json.dumps(listings, ensure_ascii=False))
 
 
+def normalize_ichiban_image_url(image_url):
+    parsed_url = urlparse(image_url)
+    if parsed_url.hostname not in {
+        "drive.google.com",
+        "www.drive.google.com",
+        "drive.usercontent.google.com",
+    }:
+        return image_url
+
+    file_id = parse_qs(parsed_url.query).get("id", [None])[0]
+    if not file_id:
+        match = re.search(r"/file/d/([^/]+)", parsed_url.path)
+        file_id = match.group(1) if match else None
+    if not file_id:
+        return image_url
+
+    return f"https://drive.usercontent.google.com/download?id={quote(file_id)}&export=view"
+
+
 def parse_ichiban_prize_fields(value):
     fields = [field.strip() for field in value.split("|")]
     if len(fields) != 6:
         return None
 
     title, image_url, aspect_ratio, play_one, play_two, remaining = fields
-    image_parsed = urlparse(image_url)
-    if image_parsed.hostname in {"drive.google.com", "www.drive.google.com"}:
-        file_id = parse_qs(image_parsed.query).get("id", [None])[0]
-        if not file_id:
-            match = re.search(r"/file/d/([^/]+)", image_parsed.path)
-            file_id = match.group(1) if match else None
-        if file_id:
-            image_url = f"https://drive.google.com/uc?export=view&id={quote(file_id)}"
-
+    image_url = normalize_ichiban_image_url(image_url)
     image_parsed = urlparse(image_url)
     ratio_match = re.fullmatch(r"([1-9]\d{0,3}):([1-9]\d{0,3})", aspect_ratio)
     if (
@@ -266,7 +277,7 @@ def build_ichiban_bubble(listing):
         "type": "bubble",
         "hero": {
             "type": "image",
-            "url": listing["image_url"],
+            "url": normalize_ichiban_image_url(listing["image_url"]),
             "size": "full",
             "aspectMode": "cover",
             "aspectRatio": listing["aspect_ratio"],
