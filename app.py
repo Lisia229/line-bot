@@ -86,6 +86,28 @@ ADMIN_USER_IDS = [
     "U149f4e039b2911dea1f3b6d6329af835", "U99c0c99890375b70599760c76eb958c9"
 ]
 FLY_USER_ID = "Ue49ea57203993d7f8bb644aa4303f8d7"
+FLY_AUTO_REPLIES = (
+    "你一開口，我就知道這群組今天又沒辦法安靜了。",
+    "你先別急著說話，讓腦袋追上來。",
+    "這句話你想了多久？怎麼看起來完全沒想過。",
+    "本來想反駁你，後來發現你已經自己完成了。",
+    "收到，已列入本日沒人問排行榜。",
+    "你這個發言，很適合留在草稿裡。",
+    "你是不是把群組當成自己的限時動態了？",
+    "好消息：你有發言。壞消息：我們有看到。",
+    "你的自信如果能分我一點，我早就去選總統了。",
+    "你不是沒重點，你是很努力地避開重點。",
+    "謝謝分享，我先假裝沒看到，給你一次機會。",
+    "這麼多字，竟然沒有一句是我需要知道的。",
+    "你先撤回，我們就當彼此還是朋友。",
+    "你的通知比你本人還勤勞。",
+    "你這個幽默，我可能要更新系統才接得到。",
+    "你負責講，我們負責在其他群組討論。",
+    "這句話值得截圖，等你清醒再給你看。",
+    "你今天是不是又忘記把內心話設成靜音？",
+    "你有考慮過打完字之後，不按送出嗎？",
+    "看得出來你很努力，雖然不知道在努力什麼。",
+)
 
 def init_group_settings(group_id):
     with sqlite3.connect(DB_PATH) as conn:
@@ -229,6 +251,14 @@ def handle_message(event):
 
     user_id = source.user_id
     group_id = source.group_id
+
+    if user_id == FLY_USER_ID:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=random.choice(FLY_AUTO_REPLIES))
+        )
+        return
+
     profile = line_bot_api.get_group_member_profile(group_id, user_id)
     user_name = profile.display_name
 
