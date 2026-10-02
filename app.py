@@ -290,9 +290,9 @@ def handle_message(event):
                     line_bot_api.push_message(admin_id, TextSendMessage(text=f"❌ 無法踢出，原因：{e}"))
             return
         
-    # ✅ 支援「幫我在1-80之間選5個數字」這種句子
+    # ✅ 支援「幫我在1-80之間選5個數字／號碼」這種句子
     match = re.search(
-        r"幫我在\s*(\d+)\s*[-~～至到－—]\s*(\d+)\s*(?:之間\s*)?選\s*(\d+)\s*個數字",
+        r"幫我在\s*(\d+)\s*[-~～至到－—]\s*(\d+)\s*(?:之間\s*)?選\s*(\d+)\s*個(?:數字|號碼)",
         text
     )
     if match:
