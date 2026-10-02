@@ -108,6 +108,23 @@ FLY_AUTO_REPLIES = (
     "你有考慮過打完字之後，不按送出嗎？",
     "看得出來你很努力，雖然不知道在努力什麼。",
 )
+FLY_AUTO_REPLY_QUEUE = []
+FLY_LAST_AUTO_REPLY = None
+
+
+def get_fly_auto_reply():
+    global FLY_LAST_AUTO_REPLY
+
+    if not FLY_AUTO_REPLY_QUEUE:
+        FLY_AUTO_REPLY_QUEUE.extend(FLY_AUTO_REPLIES)
+        random.shuffle(FLY_AUTO_REPLY_QUEUE)
+        if FLY_AUTO_REPLY_QUEUE[-1] == FLY_LAST_AUTO_REPLY:
+            FLY_AUTO_REPLY_QUEUE[0], FLY_AUTO_REPLY_QUEUE[-1] = (
+                FLY_AUTO_REPLY_QUEUE[-1], FLY_AUTO_REPLY_QUEUE[0]
+            )
+
+    FLY_LAST_AUTO_REPLY = FLY_AUTO_REPLY_QUEUE.pop()
+    return FLY_LAST_AUTO_REPLY
 
 def init_group_settings(group_id):
     with sqlite3.connect(DB_PATH) as conn:
@@ -255,7 +272,7 @@ def handle_message(event):
     if user_id == FLY_USER_ID:
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text=random.choice(FLY_AUTO_REPLIES))
+            TextSendMessage(text=get_fly_auto_reply())
         )
         return
 
