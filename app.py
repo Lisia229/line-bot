@@ -9,6 +9,8 @@ import os
 import sqlite3
 import random
 import re
+import json
+from urllib.parse import parse_qs, quote, urlparse
 
 # 初始化 Flask 與資料庫
 app = Flask(__name__)
@@ -206,6 +208,94 @@ def set_business_hours(hours):
         ))
 
         conn.commit()
+
+MAX_ICHIBAN_LISTINGS = 10
+
+
+def get_ichiban_listings():
+    value = get_setting("ichiban_listings")
+    if not value:
+        return []
+    try:
+        listings = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return []
+    return listings if isinstance(listings, list) else []
+
+
+def save_ichiban_listings(listings):
+    set_setting("ichiban_listings", json.dumps(listings, ensure_ascii=False))
+
+
+def parse_ichiban_prize_fields(value):
+    fields = [field.strip() for field in value.split("|")]
+    if len(fields) != 6:
+        return None
+
+    title, image_url, aspect_ratio, play_one, play_two, remaining = fields
+    image_parsed = urlparse(image_url)
+    if image_parsed.hostname in {"drive.google.com", "www.drive.google.com"}:
+        file_id = parse_qs(image_parsed.query).get("id", [None])[0]
+        if not file_id:
+            match = re.search(r"/file/d/([^/]+)", image_parsed.path)
+            file_id = match.group(1) if match else None
+        if file_id:
+            image_url = f"https://drive.google.com/uc?export=view&id={quote(file_id)}"
+
+    image_parsed = urlparse(image_url)
+    ratio_match = re.fullmatch(r"([1-9]\d{0,3}):([1-9]\d{0,3})", aspect_ratio)
+    if (
+        not title or not play_one or not play_two or not remaining
+        or not ratio_match
+        or image_parsed.scheme != "https" or not image_parsed.netloc
+    ):
+        return None
+
+    return {
+        "title": title,
+        "image_url": image_url,
+        "aspect_ratio": aspect_ratio,
+        "play_one": play_one,
+        "play_two": play_two,
+        "remaining": remaining,
+    }
+
+
+def build_ichiban_bubble(listing):
+    return {
+        "type": "bubble",
+        "hero": {
+            "type": "image",
+            "url": listing["image_url"],
+            "size": "full",
+            "aspectMode": "cover",
+            "aspectRatio": listing["aspect_ratio"],
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": [
+                {"type": "text", "text": listing["title"], "weight": "bold", "size": "md", "wrap": True},
+                {"type": "text", "text": f"玩法一：{listing['play_one']}", "size": "sm", "wrap": True},
+                {"type": "text", "text": f"玩法二：{listing['play_two']}", "size": "sm", "wrap": True},
+                {"type": "text", "text": listing["remaining"], "weight": "bold", "size": "sm", "color": "#C7473A", "wrap": True},
+            ],
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [{
+                "type": "text",
+                "text": "詳細配率請至群組相簿查看",
+                "size": "sm",
+                "color": "#666666",
+                "align": "center",
+                "wrap": True,
+            }],
+        },
+    }
+
 TOGGLE_MAP = {
     "踢人保護": "kick_protect",
     "邀請保護": "invite_protect",
@@ -236,6 +326,13 @@ HELP_TEXT = '''🔐 保護功能指令清單（限管理員）：
 - 相簿保護
 - 全體標記保護
 - 貼圖洗版保護
+
+🎟 一番賞 Bubble（限管理員，欄位以 | 分隔）：
+/一番賞新增 標題|圖片網址|比例|玩法一|玩法二|剩餘抽數
+/一番賞修改 編號|標題|圖片網址|比例|玩法一|玩法二|剩餘抽數
+/一番賞刪除 編號
+/一番賞列表
+/今日一番賞推薦
 '''
 
 @app.route("/callback", methods=["POST"])
@@ -269,6 +366,13 @@ def handle_message(event):
     user_id = source.user_id
     group_id = source.group_id
 
+    if user_id == "U99c0c99890375b70599760c76eb958c9" and "開店" in text:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="老闆終於起床上班了")
+        )
+        return
+
     if user_id == FLY_USER_ID:
         line_bot_api.reply_message(
             event.reply_token,
@@ -289,6 +393,124 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=warning_msg))
         for admin_id in ADMIN_USER_IDS:
             line_bot_api.push_message(admin_id, TextSendMessage(text=admin_msg))
+
+    if text.startswith(("/一番賞新增 ", "/一番賞修改 ", "/一番賞刪除 ", "/一番賞列表", "/今日一番賞推薦")):
+        if not is_group_admin(group_id, user_id):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 只有管理員可以管理或發送一番賞")
+            )
+            return
+
+    if text.startswith("/一番賞新增 "):
+        listings = get_ichiban_listings()
+        if len(listings) >= MAX_ICHIBAN_LISTINGS:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 最多只能設定 10 款一番賞")
+            )
+            return
+
+        listing = parse_ichiban_prize_fields(text[len("/一番賞新增 "):])
+        if listing is None:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 格式錯誤。請依序提供：標題|圖片網址|比例|玩法一|玩法二|剩餘抽數；圖片網址需為 HTTPS 且開放連結檢視。")
+            )
+            return
+
+        listings.append(listing)
+        save_ichiban_listings(listings)
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"✅ 已新增第 {len(listings)} 款：{listing['title']}")
+        )
+        return
+
+    if text.startswith("/一番賞修改 "):
+        try:
+            index_text, listing_text = text[len("/一番賞修改 "):].split("|", 1)
+            listing_index = int(index_text.strip()) - 1
+        except ValueError:
+            listing_index = -1
+            listing_text = ""
+
+        listings = get_ichiban_listings()
+        if not 0 <= listing_index < len(listings):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 編號無效，請先用 /一番賞列表 查看編號")
+            )
+            return
+
+        listing = parse_ichiban_prize_fields(listing_text)
+        if listing is None:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 格式錯誤。請提供：編號|標題|圖片網址|比例|玩法一|玩法二|剩餘抽數；圖片網址需為 HTTPS 且開放連結檢視。")
+            )
+            return
+
+        listings[listing_index] = listing
+        save_ichiban_listings(listings)
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"✅ 第 {listing_index + 1} 款已更新：{listing['title']}")
+        )
+        return
+
+    if text.startswith("/一番賞刪除 "):
+        listings = get_ichiban_listings()
+        try:
+            listing_index = int(text[len("/一番賞刪除 "):].strip()) - 1
+        except ValueError:
+            listing_index = -1
+
+        if not 0 <= listing_index < len(listings):
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="❌ 編號無效，請先用 /一番賞列表 查看編號")
+            )
+            return
+
+        removed = listings.pop(listing_index)
+        save_ichiban_listings(listings)
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"✅ 已刪除：{removed['title']}")
+        )
+        return
+
+    if text == "/一番賞列表":
+        listings = get_ichiban_listings()
+        listing_text = "\n".join(
+            f"{index}. {listing['title']}（{listing['remaining']}）"
+            for index, listing in enumerate(listings, start=1)
+        ) or "目前沒有設定一番賞"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=listing_text)
+        )
+        return
+
+    if text == "/今日一番賞推薦":
+        listings = get_ichiban_listings()
+        if not listings:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="目前沒有設定一番賞，請先使用 /一番賞新增")
+            )
+            return
+
+        carousel = {
+            "type": "carousel",
+            "contents": [build_ichiban_bubble(listing) for listing in listings[:MAX_ICHIBAN_LISTINGS]],
+        }
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(alt_text="今日一番賞資訊", contents=carousel)
+        )
+        return
 
     if text == "/id":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"你的 User ID 是：{user_id}"))
